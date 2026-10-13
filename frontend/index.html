@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CineCatálogo | Catálogo de Filmes</title>
+  <meta name="description" content="Aplicação completa para gerenciamento de catálogo de filmes com Node.js, Express, Mongoose e MongoDB em Memória.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20%22100%22%20%22100%22><text y=%22.9em%22 font-size=%2290%22>🎬</text></svg>">
+</head>
+<body>
+  <!-- Header / Barra de Navegação -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <span class="brand-icon">🎬</span>
+        <div class="brand-text">
+          <h1>Cine<span>Catálogo</span></h1>
+          <p class="brand-subtitle">Gerenciador de Filmes em Memória</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="btnOpenModal" class="btn btn-primary" title="Adicionar novo filme ao catálogo">
+          <span class="icon">+</span> Novo Filme
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Seção Principal -->
+  <main class="main-container">
+    <!-- Barra de Controles e Filtros -->
+    <section class="controls-section">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input 
+          type="text" 
+          id="searchInput" 
+          placeholder="Pesquisar por título, diretor ou gênero..." 
+          autocomplete="off"
+        >
+        <button id="btnClearSearch" class="btn-clear hidden" title="Limpar pesquisa">&times;</button>
+      </div>
+
+      <div class="filters-row">
+        <div class="filter-group">
+          <label for="genreFilter">Gênero:</label>
+          <select id="genreFilter">
+            <option value="todos">Todos os gêneros</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="sortFilter">Ordenar por:</label>
+          <select id="sortFilter">
+            <option value="recent">Adicionados Recentemente</option>
+            <option value="year-desc">Ano (Mais recentes primeiro)</option>
+            <option value="year-asc">Ano (Mais antigos primeiro)</option>
+            <option value="title-asc">Título (A-Z)</option>
+            <option value="title-desc">Título (Z-A)</option>
+          </select>
+        </div>
+
+        <div class="stats-counter" id="statsCounter">
+          Carregando catálogo...
+        </div>
+      </div>
+    </section>
+
+    <!-- Grade de Cards de Filmes -->
+    <section class="movies-section">
+      <div id="loadingIndicator" class="loading-state">
+        <div class="spinner"></div>
+        <p>Conectando ao MongoDB em memória e carregando filmes...</p>
+      </div>
+
+      <div id="moviesGrid" class="movies-grid hidden">
+        <!-- Cards gerados dinamicamente via JS -->
+      </div>
+
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-icon">🎞️</div>
+        <h3>Nenhum filme encontrado</h3>
+        <p id="emptyMessage">Não há filmes cadastrados no momento ou nenhum filme corresponde à sua busca.</p>
+        <button id="btnEmptyAdd" class="btn btn-secondary">Cadastrar Primeiro Filme</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal de Cadastro / Edição -->
+  <div id="movieModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modalTitle">Cadastrar Novo Filme</h2>
+        <button id="btnCloseModal" class="btn-close" aria-label="Fechar modal">&times;</button>
+      </div>
+
+      <form id="movieForm" novalidate>
+        <input type="hidden" id="movieId">
+
+        <div class="form-group">
+          <label for="movieTitle">Título do Filme <span class="required">*</span></label>
+          <input 
+            type="text" 
+            id="movieTitle" 
+            placeholder="Ex: Interestelar" 
+            required
+            maxlength="200"
+          >
+          <span class="field-error" id="errorTitle"></span>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="movieDirector">Diretor <span class="required">*</span></label>
+            <input 
+              type="text" 
+              id="movieDirector" 
+              placeholder="Ex: Christopher Nolan" 
+              required
+              maxlength="120"
+            >
+            <span class="field-error" id="errorDirector"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="movieYear">Ano de Lançamento <span class="required">*</span></label>
+            <input 
+              type="number" 
+              id="movieYear" 
+              placeholder="Ex: 2014" 
+              min="1888" 
+              max="2035" 
+              required
+            >
+            <span class="field-error" id="errorYear"></span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="movieGenre">Gênero <span class="required">*</span></label>
+          <input 
+            type="text" 
+            id="movieGenre" 
+            placeholder="Ex: Ficção Científica, Drama, Ação..." 
+            required
+            maxlength="80"
+          >
+          <span class="field-error" id="errorGenre"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="movieCoverUrl">URL da Imagem da Capa <span class="required">*</span></label>
+          <div class="url-input-container">
+            <input 
+              type="url" 
+              id="movieCoverUrl" 
+              placeholder="https://exemplo.com/poster.jpg" 
+              required
+            >
+            <button type="button" id="btnPreviewCover" class="btn btn-outline" title="Pré-visualizar Capa">Testar Capa</button>
+          </div>
+          <span class="field-error" id="errorCoverUrl"></span>
+        </div>
+
+        <!-- Preview da Capa no Formulário -->
+        <div id="coverPreviewContainer" class="cover-preview-box hidden">
+          <p class="preview-label">Pré-visualização da Capa:</p>
+          <div class="preview-img-wrapper">
+            <img id="coverPreviewImg" src="" alt="Pré-visualização do pôster">
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="btnCancelModal" class="btn btn-outline">Cancelar</button>
+          <button type="submit" id="btnSaveMovie" class="btn btn-primary">
+            <span class="btn-spinner hidden" id="saveSpinner"></span>
+            <span id="btnSaveText">Salvar Filme</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmação de Exclusão -->
+  <div id="deleteModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal-card modal-confirm">
+      <div class="confirm-icon">⚠️</div>
+      <h2>Excluir Filme</h2>
+      <p>Tem certeza de que deseja excluir o filme <strong id="deleteMovieTitle"></strong>?</p>
+      <p class="confirm-subtext">Esta operação não pode ser desfeita.</p>
+
+      <div class="modal-actions">
+        <button id="btnCancelDelete" class="btn btn-outline">Cancelar</button>
+        <button id="btnConfirmDelete" class="btn btn-danger">Sim, Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- Rodapé -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <p>🎬 <strong>CineCatálogo</strong> &bull; Node.js + Express + Mongoose + MongoDB Memory Server</p>
+      <p class="footer-sub">Pronto para deploy na Vercel e GitHub &bull; Full Stack API REST</p>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
