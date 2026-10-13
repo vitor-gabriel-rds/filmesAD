@@ -1,208 +1,117 @@
-const mongoose = require('mongoose');
-const Movie = require('../models/Movie');
+// Array em memória para funcionar perfeitamente na Vercel sem banco de dados
+let movies = [
+  {
+    _id: "1",
+    title: "Corra!",
+    director: "Jordan Peele",
+    year: 2017,
+    genre: "Terror",
+    coverUrl: "https://br.web.img3.acsta.net/pictures/17/04/19/21/08/577190.jpg"
+  }
+];
 
-/**
- * GET /api/movies
- * Retorna todos os filmes, com suporte a busca e filtros por query string.
- */
 async function getAllMovies(req, res, next) {
   try {
     const { search, genre, sort } = req.query;
-    const filter = {};
+    let result = [...movies];
 
     if (genre && genre.trim() !== '' && genre.toLowerCase() !== 'todos') {
-      filter.genre = { $regex: genre.trim(), $options: 'i' };
+      result = result.filter(m => m.genre.toLowerCase().includes(genre.toLowerCase().trim()));
     }
 
     if (search && search.trim() !== '') {
-      const searchRegex = { $regex: search.trim(), $options: 'i' };
-      filter.$or = [
-        { title: searchRegex },
-        { director: searchRegex },
-        { genre: searchRegex }
-      ];
+      const s = search.toLowerCase().trim();
+      result = result.filter(m => m.title.toLowerCase().includes(s) || m.director.toLowerCase().includes(s) || m.genre.toLowerCase().includes(s));
     }
-
-    let sortOption = { createdAt: -1 };
-    if (sort === 'year-desc') sortOption = { year: -1 };
-    if (sort === 'year-asc') sortOption = { year: 1 };
-    if (sort === 'title-asc') sortOption = { title: 1 };
-    if (sort === 'title-desc') sortOption = { title: -1 };
-
-    const movies = await Movie.find(filter).sort(sortOption);
 
     return res.status(200).json({
       success: true,
-      count: movies.length,
-      data: movies
+      count: result.length,
+      data: result
     });
   } catch (error) {
     next(error);
   }
 }
 
-/**
- * GET /api/movies/:id
- * Retorna um filme específico por ID.
- */
 async function getMovieById(req, res, next) {
   try {
-    const { id } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Identificador (ID) do filme inválido.'
-      });
-    }
-
-    const movie = await Movie.findById(id);
-
+    const movie = movies.find(m => m._id === req.params.id);
     if (!movie) {
-      return res.status(404).json({
-        success: false,
-        error: 'Filme não encontrado.'
-      });
+      return res.status(404).json({ success: false, error: 'Filme não encontrado.' });
     }
-
-    return res.status(200).json({
-      success: true,
-      data: movie
-    });
+    return res.status(200).json({ success: true, data: movie });
   } catch (error) {
     next(error);
   }
 }
 
-/**
- * POST /api/movies
- * Cadastra um novo filme.
- */
 async function createMovie(req, res, next) {
   try {
     const { title, director, year, genre, coverUrl } = req.body;
 
-    // Validação preliminar de campos vazios
-    const missingFields = [];
-    if (!title || !title.trim()) missingFields.push('title (Título)');
-    if (!director || !director.trim()) missingFields.push('director (Diretor)');
-    if (year === undefined || year === null || year === '') missingFields.push('year (Ano)');
-    if (!genre || !genre.trim()) missingFields.push('genre (Gênero)');
-    if (!coverUrl || !coverUrl.trim()) missingFields.push('coverUrl (URL da Capa)');
-
-    if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        error: `Os seguintes campos são obrigatórios: ${missingFields.join(', ')}.`
-      });
+    if (!title || !director || year === undefined || !genre || !coverUrl) {
+      return res.status(400).json({ success: false, error: 'Todos os campos são obrigatórios.' });
     }
 
-    const movie = await Movie.create({
+    const newMovie = {
+      _id: Date.now().toString(),
       title: title.trim(),
       director: director.trim(),
       year: Number(year),
       genre: genre.trim(),
       coverUrl: coverUrl.trim()
-    });
+    };
+
+    movies.unshift(newMovie);
 
     return res.status(201).json({
       success: true,
       message: 'Filme cadastrado com sucesso!',
-      data: movie
+      data: newMovie
     });
   } catch (error) {
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({
-        success: false,
-        error: messages.join(' ')
-      });
-    }
     next(error);
   }
 }
 
-/**
- * PUT /api/movies/:id
- * Atualiza os dados de um filme existente.
- */
 async function updateMovie(req, res, next) {
   try {
-    const { id } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Identificador (ID) do filme inválido.'
-      });
+    const index = movies.findIndex(m => m._id === req.params.id);
+    if (index === -1) {
+      return res.status(404).json({ success: false, error: 'Filme não encontrado para atualização.' });
     }
 
     const { title, director, year, genre, coverUrl } = req.body;
-    const updateData = {};
-
-    if (title !== undefined) updateData.title = title.trim();
-    if (director !== undefined) updateData.director = director.trim();
-    if (year !== undefined) updateData.year = Number(year);
-    if (genre !== undefined) updateData.genre = genre.trim();
-    if (coverUrl !== undefined) updateData.coverUrl = coverUrl.trim();
-
-    const movie = await Movie.findByIdAndUpdate(id, updateData, {
-      new: true,
-      runValidators: true
-    });
-
-    if (!movie) {
-      return res.status(404).json({
-        success: false,
-        error: 'Filme não encontrado para atualização.'
-      });
-    }
+    if (title !== undefined) movies[index].title = title.trim();
+    if (director !== undefined) movies[index].director = director.trim();
+    if (year !== undefined) movies[index].year = Number(year);
+    if (genre !== undefined) movies[index].genre = genre.trim();
+    if (coverUrl !== undefined) movies[index].coverUrl = coverUrl.trim();
 
     return res.status(200).json({
       success: true,
       message: 'Filme atualizado com sucesso!',
-      data: movie
+      data: movies[index]
     });
   } catch (error) {
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({
-        success: false,
-        error: messages.join(' ')
-      });
-    }
     next(error);
   }
 }
 
-/**
- * DELETE /api/movies/:id
- * Exclui um filme pelo ID.
- */
 async function deleteMovie(req, res, next) {
   try {
-    const { id } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Identificador (ID) do filme inválido.'
-      });
+    const index = movies.findIndex(m => m._id === req.params.id);
+    if (index === -1) {
+      return res.status(404).json({ success: false, error: 'Filme não encontrado para exclusão.' });
     }
 
-    const movie = await Movie.findByIdAndDelete(id);
-
-    if (!movie) {
-      return res.status(404).json({
-        success: false,
-        error: 'Filme não encontrado para exclusão.'
-      });
-    }
+    const deletedMovie = movies.splice(index, 1)[0];
 
     return res.status(200).json({
       success: true,
       message: 'Filme excluído com sucesso!',
-      data: movie
+      data: deletedMovie
     });
   } catch (error) {
     next(error);
